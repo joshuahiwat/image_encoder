@@ -65,42 +65,32 @@ def build_custom_codes(root):
             codes[char] = ''
     return codes
 
-def compress_data(data, custom_codes):
-    compressed_data = ""
+def encode_data(data, custom_codes):
+    encoded_data = ""
     for char in data:
-        compressed_data += custom_codes.get(char, '')
-    return compressed_data
+        encoded_data += custom_codes.get(char, '')
+    return encoded_data
 
-def decompress_data(compressed_data, root):
-    decompressed_data = ""
+def decode_data(encoded_data, root):
+    decoded_data = ""
     current_node = root
-    for bit in compressed_data:
+    for bit in encoded_data:
         if bit == '0':
             current_node = current_node.left
-        else:
+        elif bit == '1':
             current_node = current_node.right
+        else:
+            # Skip characters that are not '0' or '1'
+            continue
         if current_node.char is not None:
-            decompressed_data += current_node.char
+            decoded_data += current_node.char
             current_node = root
-    return decompressed_data
-
-def calculate_mse(image1, image2):
-    # Resize image2 to match the size of image1
-    image2 = image2.resize(image1.size)
-    # Convert images to numpy arrays
-    array1 = np.array(image1.convert('L'))  # Convert to grayscale
-    array2 = np.array(image2.convert('L'))  # Convert to grayscale
-    # Calculate Mean Squared Error (MSE)
-    mse = np.mean((array1 - array2) ** 2)
-    return mse
+    return decoded_data
 
 # Example usage:
-input_image_path = "input_image.jpg"
-output_compressed_text_file = "compressed_image.txt"
-output_decompressed_image_path = "decompressed_image.jpg"
-
-# Extract image format from the input image path
-input_image_format = input_image_path.split('.')[-1]
+input_image_path = "input_image.jpeg"
+output_encoded_text_file = "encoded_image.txt"
+output_decoded_image_path = "decoded_image.jpeg"
 
 # Read binary data from a file
 with open(input_image_path, "rb") as file:
@@ -118,42 +108,41 @@ custom_tree_root = build_custom_tree()
 # Build custom codes from the binary tree
 custom_codes = build_custom_codes(custom_tree_root)
 
-# Compress the data using custom coding
-compressed_data = compress_data(original_characters, custom_codes)
+# Encode the data using custom coding
+encoded_data = encode_data(original_characters, custom_codes)
 
-# Write compressed data to a text file
-with open(output_compressed_text_file, 'w') as file:
-    file.write(compressed_data)
+# Ensure encoded data fits into 2KB (2048 bytes)
+encoded_data = encoded_data[:2048]
 
-# Read compressed data from the text file
-with open(output_compressed_text_file, 'r') as file:
-    compressed_data = file.read()
+# Write encoded data to a text file
+with open(output_encoded_text_file, 'w') as file:
+    file.write(encoded_data)
 
-# Decompress the data using custom coding
-decompressed_characters = decompress_data(compressed_data, custom_tree_root)
+print("Encoded data size:", len(encoded_data), "bytes")
 
-# Convert decompressed characters to binary data
-decompressed_binary_data = bytearray(decompressed_characters.encode())
+# Decode the encoded data from the text file
+with open(output_encoded_text_file, 'r') as file:
+    encoded_data = file.read()
 
-# Calculate the image size based on the length of binary data
-image_size = int(np.sqrt(len(decompressed_binary_data)))
+# Decode the data using custom coding
+decoded_characters = decode_data(encoded_data, custom_tree_root)
 
-# Reshape the binary data to form an image array
-decompressed_image_array = np.array(decompressed_binary_data[:image_size**2]).reshape((image_size, image_size))
+# Calculate the dimensions of the original image
+original_image = Image.open(input_image_path)
+original_width, original_height = original_image.size
+
+# Calculate the total number of pixels in the original image
+total_pixels = original_width * original_height
+
+# Pad or truncate the decoded data to match the size of the original image
+decoded_data_padded = decoded_characters.ljust(total_pixels, ' ')
+
+# Reshape the characters to form an image array
+decoded_image_array = np.array(list(decoded_data_padded)).reshape((original_height, original_width))
 
 # Convert the image array to an image and save it
-decompressed_image = Image.fromarray(decompressed_image_array.astype(np.uint8) * 255)  # Scale to 0-255 range
-# Save the decompressed image using the same format as the original image
-decompressed_image.save(output_decompressed_image_path, format=input_image_format)
+decoded_image = Image.fromarray(decoded_image_array.astype(np.uint8) * 255)  # Scale to 0-255 range
+# Save the decoded image using the same format as the original image
+decoded_image.save(output_decoded_image_path, format='JPEG')
 
-# Open the original image using PIL
-original_image = Image.open(input_image_path)
-
-# Calculate Mean Squared Error (MSE) between the original and decompressed images
-mse = calculate_mse(original_image, decompressed_image)
-
-# Open the decompressed image using PIL and display it
-decompressed_image.show()
-
-print("Mean Squared Error (MSE) between the original and decompressed images:", mse)
-
+print("Decoded image saved to:", output_decoded_image_path)
